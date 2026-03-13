@@ -1,0 +1,34 @@
+# Core AI
+anthropic>=0.40.0
+openai>=1.0.0
+
+# LangChain ecosystem
+langchain>=0.3.0
+langchain-anthropic>=0.3.0
+langchain-community>=0.3.0
+langchain-core>=0.3.0
+langchain-text-splitters>=0.3.0
+
+# LangGraph
+langgraph>=0.2.0
+
+# RAG - Vector store and embeddings
+chromadb>=0.5.0
+sentence-transformers>=3.0.0
+
+# Document loaders
+pypdf>=4.0.0
+
+# Utilities
+python-dotenv>=1.0.0
+pydantic>=2.0.0
+
+# Web framework + API
+fastapi>=0.115.0
+uvicorn[standard]>=0.32.0
+sse-starlette>=2.1.0
+python-multipart>=0.0.9
+
+# Optional: for running Jupyter notebooks
+# jupyter
+# ipykernel

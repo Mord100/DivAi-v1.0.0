@@ -1,0 +1,66 @@
+# ─────────────────────────────────────────────
+# SECRETS & ENVIRONMENT
+# ─────────────────────────────────────────────
+.env
+.env.local
+.env.*.local
+# .env.example is intentionally NOT ignored — it's the safe template
+
+# ─────────────────────────────────────────────
+# PYTHON
+# ─────────────────────────────────────────────
+venv/
+.venv/
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+*.egg-info/
+.eggs/
+dist/
+build/
+*.so
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+*.log
+
+# ─────────────────────────────────────────────
+# NODE / NEXT.JS (frontend/)
+# ─────────────────────────────────────────────
+node_modules/
+.next/
+out/
+.turbo/
+*.tsbuildinfo
+
+# ─────────────────────────────────────────────
+# AI / VECTOR DATABASE
+# ─────────────────────────────────────────────
+# ChromaDB stores large binary embedding files — regeneratable from source docs
+data/chroma/
+
+# ─────────────────────────────────────────────
+# RUNTIME OUTPUT
+# ─────────────────────────────────────────────
+# Generated proposals are runtime artifacts, not source code
+output/
+# Raw scrape dumps — large JSON files produced at runtime
+output_*.json
+
+# ─────────────────────────────────────────────
+# CLAUDE CODE LOCAL STATE
+# ─────────────────────────────────────────────
+# .claude/ contains local memory & personal session state
+.claude/
+
+# ─────────────────────────────────────────────
+# OS / IDE
+# ─────────────────────────────────────────────
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+*.swp
+*.swo

@@ -1,0 +1,1 @@
+# DivAi API routes package

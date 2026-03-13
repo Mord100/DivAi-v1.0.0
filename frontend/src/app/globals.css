@@ -1,0 +1,39 @@
+/*
+  Tailwind v4 entry point.
+
+  CONCEPT: Tailwind v4 changed the import model entirely.
+  Old (v3):  @tailwind base;  @tailwind components;  @tailwind utilities;
+  New (v4):  @import "tailwindcss";   — one line does everything
+
+  Theme tokens (colors, fonts, radii) that used to live in tailwind.config.js
+  now live in an @theme block right here in CSS. This keeps config co-located
+  with the styles that use it.
+*/
+@import "tailwindcss";
+@import "./base.css";
+
+/* ── DiV Dynamics brand tokens ──────────────────────────────────────────── */
+@theme {
+  /* Mona Sans as the default sans-serif across the entire app */
+  --font-sans: "Mona Sans", ui-sans-serif, system-ui, sans-serif;
+
+  /* Custom border radius token — used as rounded-4xl */
+  --radius-4xl: 2.5rem;
+}
+
+/* ── Custom utilities ────────────────────────────────────────────────────── */
+@layer utilities {
+  /*
+    font-display: Mona Sans with the width axis set to 125 (condensed/bold
+    display mode). Used on all headlines, the header logo, and large labels.
+    The width axis is a variable-font feature — regular CSS can't express it
+    in font-family alone, so we expose it as a utility class.
+  */
+  .font-display {
+    font-family: "Mona Sans", ui-sans-serif, system-ui, sans-serif;
+    font-variation-settings: "wdth" 125;
+  }
+
+  .scrollbar-hide::-webkit-scrollbar { display: none; }
+  .scrollbar-hide { -ms-overflow-style: none; scrollbar-width: none; }
+}
