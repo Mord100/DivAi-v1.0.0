@@ -47,7 +47,7 @@ NODE_LABELS = {
 
 
 # ---------------------------------------------------------------------------
-# Sanitise node output — strip blobs before sending over SSE
+# Sanitise node output — strip blobs before sending over SSEeee
 # ---------------------------------------------------------------------------
 
 def _sanitise_node_output(node_name: str, updates: dict) -> dict:
