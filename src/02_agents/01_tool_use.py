@@ -5,7 +5,7 @@ What you'll learn:
 - How to define tools with JSON schema
 - How the AI decides when to call a tool
 - How to execute the tool and return results
-- The tool_use / tool_result message flow
+- The tool_use / tool_result message flow.
 """
 
 import anthropic
