@@ -52,7 +52,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routes import scan, stream, report, interact, download, chat
+from api.routes import scan, stream, report, interact, download, chat, auth_capture
 
 
 # ---------------------------------------------------------------------------
@@ -78,9 +78,12 @@ app = FastAPI(
 # In production (Phase 7), replace "*" with the exact frontend URL:
 #   allow_origins=["https://divai.yourdomain.com"]
 
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
+_origins = ["*"] if _raw_origins == "*" else [o.strip() for o in _raw_origins.split(",")]
+
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],          # Dev: allow any origin
+    allow_origins=_origins,       # Set ALLOWED_ORIGINS env var in production
     allow_credentials=True,
     allow_methods=["*"],          # Allow GET, POST, OPTIONS, etc.
     allow_headers=["*"],          # Allow Authorization, Content-Type, etc.
@@ -99,7 +102,8 @@ app.include_router(stream.router,    prefix="/api", tags=["Stream"])
 app.include_router(report.router,    prefix="/api", tags=["Report"])
 app.include_router(interact.router,  prefix="/api", tags=["Interact"])
 app.include_router(download.router,  prefix="/api", tags=["Download"])
-app.include_router(chat.router,      prefix="/api", tags=["Chat"])
+app.include_router(chat.router,        prefix="/api", tags=["Chat"])
+app.include_router(auth_capture.router, prefix="/api", tags=["Auth Capture"])
 
 
 # ---------------------------------------------------------------------------

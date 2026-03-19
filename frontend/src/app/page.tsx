@@ -13,9 +13,10 @@
 
 import { useState, FormEvent } from "react";
 import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { Container } from "@/components/Container";
 import { FadeIn, FadeInStagger } from "@/components/FadeIn";
-import { ArrowRight, Zap, Search, FileText } from "lucide-react";
+import { ArrowRight, Zap, Search, FileText, KeyRound } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -158,6 +159,17 @@ export default function HomePage() {
               {error && (
                 <p className="mt-3 text-sm text-red-400">{error}</p>
               )}
+
+              <p className="mt-4 text-sm text-neutral-600">
+                Site behind a login?{" "}
+                <Link
+                  href={url ? `/auth-capture?url=${encodeURIComponent(url)}` : "/auth-capture"}
+                  className="inline-flex items-center gap-1 text-neutral-400 hover:text-white transition"
+                >
+                  <KeyRound className="h-3.5 w-3.5" />
+                  Sign up &amp; capture session first
+                </Link>
+              </p>
             </form>
           </FadeIn>
         </Container>

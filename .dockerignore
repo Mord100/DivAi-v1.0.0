@@ -1,0 +1,17 @@
+venv/
+__pycache__/
+**/__pycache__/
+*.pyc
+*.pyo
+.env
+.env.*
+!.env.example
+data/chroma/
+frontend/
+.git/
+*.md
+*.docx
+*.pdf
+.pytest_cache/
+.mypy_cache/
+node_modules/
