@@ -11,38 +11,27 @@
  * the browser with full React capabilities.
  */
 
-import { useState, FormEvent } from "react";
+import { useState, FormEvent, useRef } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import { Container } from "@/components/Container";
-import { FadeIn, FadeInStagger } from "@/components/FadeIn";
-import { ArrowRight, Zap, Search, FileText, KeyRound } from "lucide-react";
+import { FadeIn } from "@/components/FadeIn";
+import { WorkflowAnimation } from "@/components/WorkflowAnimation";
+import { ArrowRight, KeyRound } from "lucide-react";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
-const steps = [
-  {
-    icon: Search,
-    title: "Scrape",
-    description: "Playwright captures the full DOM, network traffic, JS globals, and tech fingerprints.",
-  },
-  {
-    icon: Zap,
-    title: "Analyse",
-    description: "Claude reads the signals — tech stack, API patterns, business model, key features.",
-  },
-  {
-    icon: FileText,
-    title: "Propose",
-    description: "A full technical proposal lands in your downloads. Tailored to this client. In minutes.",
-  },
-];
-
 export default function HomePage() {
-  const router = useRouter();
-  const [url, setUrl] = useState("");
+  const router  = useRouter();
+  const formRef = useRef<HTMLFormElement>(null);
+  const [url, setUrl]       = useState("");
   const [loading, setLoading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [error, setError]   = useState<string | null>(null);
+
+  // Scrolls the hero form into view when the animation CTA is clicked
+  function handleScrollToForm() {
+    formRef.current?.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
 
   async function handleSubmit(e: FormEvent) {
     e.preventDefault();
@@ -114,7 +103,7 @@ export default function HomePage() {
 
           {/* ── Scan form ─────────────────────────────────────────────────── */}
           <FadeIn>
-            <form onSubmit={handleSubmit} className="mt-12">
+            <form ref={formRef} onSubmit={handleSubmit} className="mt-12">
               <div className="flex flex-col gap-3 sm:flex-row sm:max-w-2xl">
                 <div className="relative flex-1">
                   <input
@@ -175,39 +164,23 @@ export default function HomePage() {
         </Container>
       </section>
 
-      {/* ── How it works ────────────────────────────────────────────────────── */}
-      <section className="border-t border-neutral-100 py-24">
+      {/* ── Workflow animation ───────────────────────────────────────────────── */}
+      <section className="border-t border-neutral-100 py-20 bg-white">
         <Container>
           <FadeIn>
-            <p className="text-xs font-medium uppercase tracking-widest text-neutral-400 mb-12">
-              How it works
-            </p>
+            <div className="mb-10">
+              <p className="text-xs font-medium uppercase tracking-widest text-neutral-400 mb-3">
+                See it in action
+              </p>
+              <p className="font-display text-2xl font-semibold tracking-tight text-neutral-950">
+                From URL to proposal — every step, animated.
+              </p>
+            </div>
           </FadeIn>
 
-          <FadeInStagger faster>
-            <div className="grid grid-cols-1 gap-8 sm:grid-cols-3">
-              {steps.map((step, i) => (
-                <FadeIn key={step.title}>
-                  <div className="flex flex-col gap-4">
-                    <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-neutral-950">
-                      <step.icon className="h-5 w-5 text-white" />
-                    </div>
-                    <div>
-                      <p className="text-sm font-medium uppercase tracking-widest text-neutral-400 mb-1">
-                        0{i + 1}
-                      </p>
-                      <h3 className="text-lg font-semibold text-neutral-950">
-                        {step.title}
-                      </h3>
-                      <p className="mt-2 text-sm text-neutral-500 leading-relaxed">
-                        {step.description}
-                      </p>
-                    </div>
-                  </div>
-                </FadeIn>
-              ))}
-            </div>
-          </FadeInStagger>
+          <FadeIn>
+            <WorkflowAnimation onStart={handleScrollToForm} />
+          </FadeIn>
         </Container>
       </section>
 
