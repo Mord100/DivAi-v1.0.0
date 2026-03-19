@@ -47,9 +47,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 WORKDIR /app
 
 # ---------------------------------------------------------------------------
-# Install Python dependencies first (layer caches until requirements change)
+# Install Python dependencies
 # ---------------------------------------------------------------------------
+# WHY the two-step install?
+# sentence-transformers depends on PyTorch. If we let pip resolve it freely
+# it downloads the full CUDA-enabled build (~2.5 GB) even though Railway
+# has no GPU. We pre-install the CPU-only build (~800 MB) first; pip then
+# sees torch as already satisfied and skips the GPU version.
 COPY requirements.txt .
+RUN pip install --no-cache-dir torch --index-url https://download.pytorch.org/whl/cpu
 RUN pip install --no-cache-dir -r requirements.txt
 
 # ---------------------------------------------------------------------------
