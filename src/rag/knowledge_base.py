@@ -38,7 +38,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_voyageai import VoyageAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # Path where ChromaDB will persist data between runs
@@ -387,17 +387,9 @@ def seed_use_case_kb(force_rebuild: bool = False) -> Chroma:
     """
     print("[KB] Loading embedding model...")
 
-    # CONCEPT: Embedding Model Choice
-    # all-MiniLM-L6-v2 is a great default for local development:
-    #   - Small (~90MB download, runs on CPU)
-    #   - Fast (~5ms per embedding)
-    #   - Good quality for semantic similarity
-    # In production we'd use Anthropic's embeddings API for consistency
-    # with the LLM, but for development this is faster and cheaper.
-    embeddings = HuggingFaceEmbeddings(
-        model_name="all-MiniLM-L6-v2",
-        model_kwargs={"device": "cpu"},
-    )
+    # VoyageAI provides API-based embeddings — no local model or PyTorch needed.
+    # voyage-3-lite is fast, cheap, and well-suited for short semantic chunks.
+    embeddings = VoyageAIEmbeddings(model="voyage-3-lite")
 
     collection_name = "use_case_kb"
     persist_dir = os.path.abspath(CHROMA_DIR)

@@ -33,7 +33,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
-from langchain_community.embeddings import HuggingFaceEmbeddings
+from langchain_voyageai import VoyageAIEmbeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 CHROMA_DIR = os.path.join(os.path.dirname(__file__), "../../data/chroma")
@@ -421,10 +421,7 @@ def seed_solution_kb(force_rebuild: bool = False) -> Chroma:
     """Seed ChromaDB with solution blueprints."""
     print("[KB] Loading embedding model for solution_blueprint_kb...")
 
-    embeddings = HuggingFaceEmbeddings(
-        model_name="all-MiniLM-L6-v2",
-        model_kwargs={"device": "cpu"},
-    )
+    embeddings = VoyageAIEmbeddings(model="voyage-3-lite")
 
     collection_name = "solution_blueprint_kb"
     persist_dir = os.path.abspath(CHROMA_DIR)
