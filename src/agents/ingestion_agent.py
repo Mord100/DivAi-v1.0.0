@@ -292,12 +292,18 @@ async def _extract_tech_signals(page: Page, raw_html: str) -> dict:
 
     CONCEPT: Technology Fingerprinting
       Every framework leaves distinctive patterns in the HTML it generates.
-      We use regex and DOM queries to detect these "fingerprints":
-        React:   data-reactroot attribute, _next/ paths in script srcs
-        Vue:     data-v-* attributes, __vue__ on DOM nodes
-        Angular: ng-version attribute, ng-* attributes
-        Tailwind: specific utility class patterns (flex, gap-, text-)
-        Bootstrap: col-md-, btn-, navbar- class patterns
+      Checks are independent (not elif) so multiple frameworks can be detected
+      simultaneously — e.g. WordPress + React is a common combination.
+        Next.js:   __NEXT_DATA__, _next/static/ paths
+        React:     data-reactroot, react bundle filenames
+        Nuxt/Vue:  __NUXT__, _nuxt/ paths, data-v-*, __vue__
+        Angular:   ng-version, word-boundary ng-* attributes
+        Svelte:    data-svelte, __svelte, _app/immutable/ paths
+        WordPress: wp-content/, wp-includes/
+        Shopify:   cdn.shopify.com, shopify.theme
+        Webflow:   webflow.com + data-wf-* attributes
+        Tailwind:  3+ distinct utility class patterns required (gap-, text-*-NNN, etc.)
+        Bootstrap: btn- + col-md- together
     """
     signals = {
         "frameworks": [],
@@ -305,20 +311,46 @@ async def _extract_tech_signals(page: Page, raw_html: str) -> dict:
         "auth_hints": [],
         "integrations": [],
     }
+    html_lower = raw_html.lower()
 
     # --- Frontend Framework Detection ---
-    if "data-reactroot" in raw_html or "_next/" in raw_html or "__NEXT_DATA__" in raw_html:
+    # Each check is independent (not elif) so multiple can be detected,
+    # e.g. WordPress + React is common.
+
+    # Next.js: unique data attributes and chunk path pattern
+    if "__NEXT_DATA__" in raw_html or "_next/static/" in raw_html:
         signals["frameworks"].append("Next.js / React")
-    elif "data-v-" in raw_html or "vue" in raw_html.lower():
+    # Plain React (without Next.js)
+    elif "data-reactroot" in raw_html or "react.development.js" in html_lower or "react.production.min.js" in html_lower:
+        signals["frameworks"].append("React")
+
+    # Nuxt (Vue SSR) — check before plain Vue
+    if "__NUXT__" in raw_html or "_nuxt/" in raw_html:
+        signals["frameworks"].append("Nuxt.js / Vue")
+    # Plain Vue — require unambiguous fingerprints only
+    elif "data-v-" in raw_html or "__vue__" in raw_html:
         signals["frameworks"].append("Vue.js")
-    elif "ng-version" in raw_html or "ng-" in raw_html:
+
+    # Angular — require word-boundary match to avoid false positives
+    if "ng-version" in raw_html or re.search(r'\bng-[a-z]', raw_html):
         signals["frameworks"].append("Angular")
-    elif "data-svelte" in raw_html:
+
+    # Svelte / SvelteKit
+    if "data-svelte" in raw_html or "__svelte" in raw_html or "_app/immutable/" in raw_html:
         signals["frameworks"].append("Svelte")
 
+    # CMS / site builders
+    if "wp-content/" in raw_html or "wp-includes/" in raw_html:
+        signals["frameworks"].append("WordPress")
+    if "cdn.shopify.com" in html_lower or "shopify.theme" in html_lower:
+        signals["frameworks"].append("Shopify")
+    if "webflow.com" in html_lower and ("wf-" in raw_html or "data-wf-" in raw_html):
+        signals["frameworks"].append("Webflow")
+
     # --- CSS Framework Detection ---
-    tailwind_pattern = re.search(r'class="[^"]*\b(flex|gap-|text-\w+-\d+|bg-\w+-\d+)\b', raw_html)
-    if tailwind_pattern:
+    # Require multiple Tailwind-specific utility patterns together to reduce false positives
+    tailwind_hits = len(re.findall(r'class="[^"]*\b(gap-\d|text-\w+-\d{3}|bg-\w+-\d{3}|rounded-\w+|px-\d|py-\d)\b', raw_html))
+    if tailwind_hits >= 3:
         signals["css_frameworks"].append("Tailwind CSS")
     if "btn-" in raw_html and "col-md-" in raw_html:
         signals["css_frameworks"].append("Bootstrap")
