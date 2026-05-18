@@ -289,16 +289,27 @@ def run_pipeline_in_thread(session: PipelineSession) -> None:
 
         timed_out = not session.interaction_event.wait(timeout=INTERACTION_TIMEOUT)
         session.interaction_event.clear()
-        session.status = "running"
         session.pending_interaction = None
 
         selected_id = None
         if not timed_out and session.interaction_response:
             selected_id = session.interaction_response.get("selected_solution_id")
 
-        if not selected_id and solutions:
-            selected_id = solutions[0].get("id")
+        # No auto-select fallback here — proposal generation requires explicit user
+        # confirmation (payment). If no selection arrives, abort cleanly.
+        if not selected_id:
+            reason = "Session timed out" if timed_out else "No solution selected"
+            session.status = "error"
+            session.error = reason
+            session.emit({
+                "type": "error",
+                "message": f"{reason}. Please start a new scan to generate a proposal.",
+                "timestamp": datetime.now().isoformat(),
+            })
+            session.emit({"type": "stream_end", "timestamp": datetime.now().isoformat()})
+            return
 
+        session.status = "running"
         app.update_state(config, {"selected_solution_id": selected_id})
 
         # ── Stage 3: proposal ─────────────────────────────────────────────

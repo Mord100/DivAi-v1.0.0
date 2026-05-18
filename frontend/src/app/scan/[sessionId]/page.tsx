@@ -10,6 +10,7 @@ import { UseCaseSelector } from "@/components/UseCaseSelector";
 import { SolutionSelector } from "@/components/SolutionSelector";
 import { useAgentStream } from "@/hooks/useAgentStream";
 import { ArrowRight, Radio } from "lucide-react";
+import { PaywallModal } from "@/components/PaywallModal";
 
 interface PageProps { params: Promise<{ sessionId: string }> }
 
@@ -36,6 +37,8 @@ export default function ScanPage({ params }: PageProps) {
   } = useAgentStream(sessionId);
 
   const [interacting, setInteracting] = useState(false);
+  const [showPaywall, setShowPaywall] = useState(false);
+  const [pendingSolutionId, setPendingSolutionId] = useState<string | null>(null);
 
   const completedCount = nodes.filter((n) => n.status === "complete").length;
   const isRunning = nodes.some((n) => n.status === "running");
@@ -50,10 +53,22 @@ export default function ScanPage({ params }: PageProps) {
     setInteracting(false);
   }
 
-  async function handleSolutionSubmit(id: string) {
+  function handleSolutionSubmit(id: string) {
+    setPendingSolutionId(id);
+    setShowPaywall(true);
+  }
+
+  async function handlePaymentConfirmed() {
+    if (!pendingSolutionId) return;
+    setShowPaywall(false);
     setInteracting(true);
-    await submitInteraction({ selected_solution_id: id });
+    await submitInteraction({ selected_solution_id: pendingSolutionId });
     setInteracting(false);
+  }
+
+  function handlePaywallBack() {
+    setShowPaywall(false);
+    setPendingSolutionId(null);
   }
 
   function statusLabel() {
@@ -262,6 +277,12 @@ export default function ScanPage({ params }: PageProps) {
           </div>
         </div>
       </Container>
+
+      <PaywallModal
+        isOpen={showPaywall}
+        onConfirm={handlePaymentConfirmed}
+        onBack={handlePaywallBack}
+      />
     </div>
   );
 }
