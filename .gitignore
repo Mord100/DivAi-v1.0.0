@@ -49,6 +49,20 @@ output/
 output_*.json
 
 # ─────────────────────────────────────────────
+# LOCAL EXPERIMENTS (not ready to commit)
+# ─────────────────────────────────────────────
+src/llm/
+
+# ─────────────────────────────────────────────
+# REMOTION / VIDEO (renders + WIP components)
+# ─────────────────────────────────────────────
+*.mp4
+frontend/src/remotion/
+frontend/src/components/WorkflowAnimation/reel/
+frontend/src/components/WorkflowAnimation/ReelComposition.tsx
+frontend/public/Mona-Sans.var.woff2
+
+# ─────────────────────────────────────────────
 # CLAUDE CODE LOCAL STATE
 # ─────────────────────────────────────────────
 # .claude/ contains local memory & personal session state
