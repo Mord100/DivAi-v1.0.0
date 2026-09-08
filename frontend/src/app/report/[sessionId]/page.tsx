@@ -1,15 +1,17 @@
 "use client";
 
-import { use, useEffect, useRef, useState } from "react";
+import { use, useCallback, useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import clsx from "clsx";
+import { useTrack } from "@/hooks/useTrack";
 import { Container } from "@/components/Container";
 import { FadeIn, FadeInStagger } from "@/components/FadeIn";
 import {
   ReportResponse, UseCase, SolutionCard, ProposalContent, EffortRow, RiskItem,
 } from "@/types/divai";
 import { useProposalChat } from "@/hooks/useProposalChat";
-import { ArrowLeft, ArrowUp, Download, Loader2, ChevronDown, ChevronUp, ExternalLink } from "lucide-react";
+import { ArrowLeft, ArrowUp, Download, Loader2, ChevronDown, ChevronUp, ExternalLink, History } from "lucide-react";
+import { useAuth } from "@/lib/supabase/AuthProvider";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -363,13 +365,14 @@ function ChatPanel({
 // ── Proposal tab ──────────────────────────────────────────────────────────────
 
 function ProposalTab({
-  paths, content, updatedSections, sessionId, onSectionUpdate,
+  paths, content, updatedSections, sessionId, onSectionUpdate, onDownload,
 }: {
   paths: ReportResponse["proposal_paths"];
   content: ProposalContent | undefined;
   updatedSections: Set<string>;
   sessionId: string;
   onSectionUpdate: (section: string, newContent: string) => void;
+  onDownload?: () => void;
 }) {
   if (!paths) return <p className="text-neutral-400">No proposal generated.</p>;
 
@@ -389,6 +392,7 @@ function ProposalTab({
               <a
                 href={`${API_URL}/api/download/${sessionId}`}
                 download
+                onClick={onDownload}
                 className="inline-flex items-center gap-2 rounded-full bg-neutral-950 px-5 py-2 text-sm font-semibold text-white hover:bg-neutral-800 transition"
               >
                 <Download className="h-4 w-4" /> Download .docx
@@ -573,6 +577,7 @@ interface PageProps { params: Promise<{ sessionId: string }> }
 
 export default function ReportPage({ params }: PageProps) {
   const { sessionId } = use(params);
+  const { user: authedUser } = useAuth();
   const [report, setReport] = useState<ReportResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [activeTab, setActiveTab] = useState<Tab>("intelligence");
@@ -581,6 +586,11 @@ export default function ReportPage({ params }: PageProps) {
   const [proposalContent, setProposalContent] = useState<ProposalContent | undefined>();
   // Tracks recently-updated sections for the flash highlight
   const [updatedSections, setUpdatedSections] = useState<Set<string>>(new Set());
+
+  const userId = typeof window !== "undefined"
+    ? localStorage.getItem("divai_user_id")
+    : null;
+  const track = useTrack(sessionId, userId);
 
   useEffect(() => {
     fetch(`${API_URL}/api/report/${sessionId}`)
@@ -592,8 +602,14 @@ export default function ReportPage({ params }: PageProps) {
           setProposalContent(data.proposal_paths.content as ProposalContent);
         }
         setLoading(false);
+        track("report_viewed");
       });
   }, [sessionId]);
+
+  const switchTab = useCallback((tab: Tab) => {
+    setActiveTab(tab);
+    track("tab_switched", { tab });
+  }, [track]);
 
   // Called by the chat hook when Claude edits a section
   function handleSectionUpdate(section: string, newContent: string) {
@@ -608,7 +624,7 @@ export default function ReportPage({ params }: PageProps) {
       });
     }, 2500);
     // Auto-switch to proposal tab if not already there
-    setActiveTab("proposal");
+    switchTab("proposal");
   }
 
   const tabs: Array<{ id: Tab; label: string; count?: number }> = [
@@ -627,9 +643,17 @@ export default function ReportPage({ params }: PageProps) {
               <ArrowLeft className="h-4 w-4" /> Back
             </Link>
             <div className="h-4 w-px bg-neutral-200" />
-            <span className="font-display text-lg font-medium text-neutral-950 truncate">
+            <span className="font-display text-lg font-medium text-neutral-950 truncate flex-1">
               {loading ? "Loading…" : report?.intelligence_report?.target_url ?? "Report"}
             </span>
+            {authedUser && (
+              <Link
+                href="/history"
+                className="inline-flex items-center gap-1.5 text-xs font-medium text-neutral-400 hover:text-neutral-950 transition"
+              >
+                <History className="w-3.5 h-3.5" /> My Reports
+              </Link>
+            )}
           </div>
         </Container>
       </header>
@@ -668,7 +692,7 @@ export default function ReportPage({ params }: PageProps) {
                 {tabs.map((tab) => (
                   <button
                     key={tab.id}
-                    onClick={() => setActiveTab(tab.id)}
+                    onClick={() => switchTab(tab.id)}
                     className={clsx(
                       "flex items-center gap-1.5 px-5 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition",
                       activeTab === tab.id
@@ -696,6 +720,7 @@ export default function ReportPage({ params }: PageProps) {
                   updatedSections={updatedSections}
                   sessionId={sessionId}
                   onSectionUpdate={handleSectionUpdate}
+                  onDownload={() => track("proposal_downloaded")}
                 />
               )}
             </div>

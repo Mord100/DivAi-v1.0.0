@@ -23,6 +23,7 @@ interface UseAgentStreamResult {
   error: string | null;
   currentNode: string | null;
   pendingInteraction: PendingInteraction | null;
+  sessionExpired: boolean;
   submitInteraction: (payload: {
     selected_use_case_ids?: string[];
     selected_solution_id?: string;
@@ -39,6 +40,7 @@ export function useAgentStream(sessionId: string | null): UseAgentStreamResult {
   const [error, setError] = useState<string | null>(null);
   const [currentNode, setCurrentNode] = useState<string | null>(null);
   const [pendingInteraction, setPendingInteraction] = useState<PendingInteraction | null>(null);
+  const [sessionExpired, setSessionExpired] = useState(false);
   const runningNodeRef = useRef<string | null>(null);
 
   async function submitInteraction(payload: {
@@ -47,10 +49,6 @@ export function useAgentStream(sessionId: string | null): UseAgentStreamResult {
   }) {
     if (!sessionId) return;
 
-    // Optimistically mark the next node as running immediately so there
-    // is no gap between the user submitting and the backend resuming.
-    // "selected_use_case_ids" means we just finished use_case → next is solution
-    // "selected_solution_id"   means we just finished solution  → next is proposal
     const nextNode = payload.selected_use_case_ids !== undefined ? "solution" : "proposal";
     setNodes((prev) => prev.map((n) =>
       n.name === nextNode ? { ...n, status: "running" } : n
@@ -69,81 +67,125 @@ export function useAgentStream(sessionId: string | null): UseAgentStreamResult {
 
   useEffect(() => {
     if (!sessionId) return;
-    const es = new EventSource(`${API_URL}/api/stream/${sessionId}`);
-    setIsConnected(true);
 
-    es.onmessage = (event: MessageEvent) => {
-      const data = JSON.parse(event.data) as PipelineEvent;
-      setEvents((prev) => [...prev, data]);
+    let es: EventSource | null = null;
+    let cancelled = false;
 
-      if (data.type === "pipeline_start") {
-        runningNodeRef.current = "ingestion";
-        setCurrentNode("ingestion");
-        setNodes((prev) => prev.map((n) =>
-          n.name === "ingestion" ? { ...n, status: "running" } : n
-        ));
-      }
+    function attachStream() {
+      if (cancelled) return;
 
-      if (data.type === "node_complete" && data.node) {
-        const completed = data.node;
-        const idx = PIPELINE_NODES.findIndex((n) => n.name === completed);
-        const next = PIPELINE_NODES[idx + 1];
-        setNodes((prev) => prev.map((n) => {
-          if (n.name === completed)
-            return { ...n, status: data.data?.error ? "error" : "complete", data: data.data, completedAt: data.timestamp };
-          // Only auto-advance to "running" if there's no pending interaction expected
-          // (the interaction_required event will handle it otherwise)
-          if (next && n.name === next.name && n.status !== "running")
-            return { ...n, status: "running" };
-          return n;
-        }));
-        if (next) { runningNodeRef.current = next.name; setCurrentNode(next.name); }
-      }
+      es = new EventSource(`${API_URL}/api/stream/${sessionId}`);
+      setIsConnected(true);
 
-      if (data.type === "interaction_required") {
-        // Keep currentNode as-is — the last completed node's "running" sibling
-        // was already set, and we want the UI to show "awaiting" rather than blank.
-        const interactionData = (data as PipelineEvent & { data?: { use_cases?: UseCase[]; solutions?: SolutionCard[]; message?: string } }).data;
-        setPendingInteraction({
-          type: data.interaction_type!,
-          use_cases: interactionData?.use_cases,
-          solutions: interactionData?.solutions,
-          message: interactionData?.message,
-        });
-        // Reset the "next" node back to pending — it hasn't started yet
-        const nextNodeName = data.interaction_type === "select_use_cases" ? "solution" : "proposal";
-        setCurrentNode(null);
-        setNodes((prev) => prev.map((n) =>
-          n.name === nextNodeName ? { ...n, status: "pending" } : n
-        ));
-      }
+      es.onmessage = (event: MessageEvent) => {
+        const data = JSON.parse(event.data) as PipelineEvent;
+        setEvents((prev) => [...prev, data]);
 
-      if (data.type === "pipeline_complete") {
-        setIsComplete(true);
-        setCurrentNode(null);
-        setPendingInteraction(null);
-        es.close();
-        setIsConnected(false);
-      }
-
-      if (data.type === "stream_end") { es.close(); setIsConnected(false); }
-
-      if (data.type === "error") {
-        setError(data.message ?? "Pipeline error");
-        if (runningNodeRef.current) {
+        if (data.type === "pipeline_start") {
+          runningNodeRef.current = "ingestion";
+          setCurrentNode("ingestion");
           setNodes((prev) => prev.map((n) =>
-            n.name === runningNodeRef.current ? { ...n, status: "error" } : n
+            n.name === "ingestion" ? { ...n, status: "running" } : n
           ));
         }
-        setPendingInteraction(null);
-        es.close();
-        setIsConnected(false);
-      }
-    };
 
-    es.onerror = () => { setIsConnected(false); es.close(); };
-    return () => { es.close(); setIsConnected(false); };
+        if (data.type === "node_complete" && data.node) {
+          const completed = data.node;
+          const idx = PIPELINE_NODES.findIndex((n) => n.name === completed);
+          const next = PIPELINE_NODES[idx + 1];
+          setNodes((prev) => prev.map((n) => {
+            if (n.name === completed)
+              return { ...n, status: data.data?.error ? "error" : "complete", data: data.data, completedAt: data.timestamp };
+            if (next && n.name === next.name && n.status !== "running")
+              return { ...n, status: "running" };
+            return n;
+          }));
+          if (next) { runningNodeRef.current = next.name; setCurrentNode(next.name); }
+        }
+
+        if (data.type === "interaction_required") {
+          const interactionData = (data as PipelineEvent & { data?: { use_cases?: UseCase[]; solutions?: SolutionCard[]; message?: string } }).data;
+          setPendingInteraction({
+            type: data.interaction_type!,
+            use_cases: interactionData?.use_cases,
+            solutions: interactionData?.solutions,
+            message: interactionData?.message,
+          });
+          const nextNodeName = data.interaction_type === "select_use_cases" ? "solution" : "proposal";
+          setCurrentNode(null);
+          setNodes((prev) => prev.map((n) =>
+            n.name === nextNodeName ? { ...n, status: "pending" } : n
+          ));
+        }
+
+        if (data.type === "pipeline_complete") {
+          setIsComplete(true);
+          setCurrentNode(null);
+          setPendingInteraction(null);
+          es?.close();
+          setIsConnected(false);
+        }
+
+        if (data.type === "stream_end") { es?.close(); setIsConnected(false); }
+
+        if (data.type === "error") {
+          setError(data.message ?? "Pipeline error");
+          if (runningNodeRef.current) {
+            setNodes((prev) => prev.map((n) =>
+              n.name === runningNodeRef.current ? { ...n, status: "error" } : n
+            ));
+          }
+          setPendingInteraction(null);
+          es?.close();
+          setIsConnected(false);
+        }
+      };
+
+      es.onerror = () => { setIsConnected(false); es?.close(); };
+    }
+
+    async function init() {
+      // Pre-connection status check — detect completed/expired sessions before
+      // opening an SSE connection so we can show the right UI immediately.
+      try {
+        const res = await fetch(`${API_URL}/api/status/${sessionId}`);
+        if (!cancelled && res.ok) {
+          const status = await res.json();
+
+          // Scan already completed — set complete immediately; no SSE needed.
+          // The SSE stream will also replay pipeline_complete if we do connect,
+          // but skipping the connection is faster.
+          if (status.status === "complete") {
+            if (!cancelled) setIsComplete(true);
+            return;
+          }
+
+          // Session not in memory (server restarted) and not complete.
+          if (!status.session_alive) {
+            if (status.status === "error") {
+              if (!cancelled) setError(status.error || "Pipeline error");
+            } else {
+              // Was awaiting_input but session is gone — cannot resume
+              if (!cancelled) setSessionExpired(true);
+            }
+            return;
+          }
+        }
+      } catch {
+        // Status check failed — try SSE anyway; it will handle edge cases
+      }
+
+      if (!cancelled) attachStream();
+    }
+
+    init();
+
+    return () => {
+      cancelled = true;
+      es?.close();
+      setIsConnected(false);
+    };
   }, [sessionId]);
 
-  return { events, nodes, isConnected, isComplete, error, currentNode, pendingInteraction, submitInteraction };
+  return { events, nodes, isConnected, isComplete, error, currentNode, pendingInteraction, sessionExpired, submitInteraction };
 }

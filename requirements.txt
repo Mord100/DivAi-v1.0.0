@@ -28,6 +28,9 @@ pydantic>=2.0.0
 # Browser automation
 playwright>=1.40.0
 
+# Supabase
+supabase>=2.0.0
+
 # Web framework + API
 fastapi>=0.115.0
 uvicorn[standard]>=0.32.0

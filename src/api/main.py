@@ -44,6 +44,12 @@ routes update at once.
 import sys
 import os
 
+# Force UTF-8 output on Windows — prevents charmap codec errors when
+# agents print Unicode characters (arrows, emoji, etc.) to the console.
+if sys.stdout.encoding and sys.stdout.encoding.lower() != 'utf-8':
+    sys.stdout.reconfigure(encoding='utf-8', errors='replace')
+    sys.stderr.reconfigure(encoding='utf-8', errors='replace')
+
 # Make sure imports from src/ work regardless of where uvicorn is started
 sys.path.insert(0, os.path.dirname(__file__))
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
@@ -52,7 +58,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routes import scan, stream, report, interact, download, chat, auth_capture
+from api.routes import scan, stream, report, interact, download, chat, auth_capture, admin, events, users
 
 
 # ---------------------------------------------------------------------------
@@ -78,15 +84,18 @@ app = FastAPI(
 # In production (Phase 7), replace "*" with the exact frontend URL:
 #   allow_origins=["https://divai.yourdomain.com"]
 
-_raw_origins = os.getenv("ALLOWED_ORIGINS", "*")
-_origins = ["*"] if _raw_origins == "*" else [o.strip() for o in _raw_origins.split(",")]
+# CORS: when allow_credentials=True the browser rejects Access-Control-Allow-Origin: *
+# so we must always list explicit origins. Default to both dev ports; set
+# ALLOWED_ORIGINS in production to the real frontend URL.
+_raw_origins = os.getenv("ALLOWED_ORIGINS", "http://localhost:3000,http://localhost:3001")
+_origins = [o.strip() for o in _raw_origins.split(",")]
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=_origins,       # Set ALLOWED_ORIGINS env var in production
+    allow_origins=_origins,
     allow_credentials=True,
-    allow_methods=["*"],          # Allow GET, POST, OPTIONS, etc.
-    allow_headers=["*"],          # Allow Authorization, Content-Type, etc.
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    allow_headers=["Authorization", "Content-Type", "Accept", "Origin", "X-Requested-With"],
 )
 
 
@@ -104,6 +113,9 @@ app.include_router(interact.router,  prefix="/api", tags=["Interact"])
 app.include_router(download.router,  prefix="/api", tags=["Download"])
 app.include_router(chat.router,        prefix="/api", tags=["Chat"])
 app.include_router(auth_capture.router, prefix="/api", tags=["Auth Capture"])
+app.include_router(admin.router,       prefix="/api", tags=["Admin"])
+app.include_router(events.router,      prefix="/api", tags=["Events"])
+app.include_router(users.router,       prefix="/api", tags=["Users"])
 
 
 # ---------------------------------------------------------------------------
@@ -141,11 +153,12 @@ async def health():
 
 @app.on_event("startup")
 async def startup_event():
-    """Warm up the RAG knowledge bases on server start."""
+    """Warm up the RAG knowledge bases and ensure Supabase Storage bucket exists."""
     import asyncio
     loop = asyncio.get_running_loop()
 
-    def seed_kbs():
+    def startup_tasks():
+        # Seed RAG knowledge bases
         try:
             from rag.knowledge_base import seed_use_case_kb
             from rag.solution_knowledge_base import seed_solution_kb
@@ -155,8 +168,14 @@ async def startup_event():
         except Exception as e:
             print(f"[Startup] KB seed warning: {e}")
 
-    # Run in executor so seeding doesn't block the event loop during startup
-    await loop.run_in_executor(None, seed_kbs)
+        # Ensure Supabase Storage bucket exists
+        try:
+            from api.supabase_store import ensure_bucket
+            ensure_bucket()
+        except Exception as e:
+            print(f"[Startup] Supabase bucket warning: {e}")
+
+    await loop.run_in_executor(None, startup_tasks)
 
 
 # ---------------------------------------------------------------------------

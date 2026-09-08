@@ -38,7 +38,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from langchain_core.documents import Document
 from langchain_community.vectorstores import Chroma
-from langchain_voyageai import VoyageAIEmbeddings
+from rag.embeddings import get_embeddings
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 
 # Path where ChromaDB will persist data between runs
@@ -389,7 +389,7 @@ def seed_use_case_kb(force_rebuild: bool = False) -> Chroma:
 
     # VoyageAI provides API-based embeddings — no local model or PyTorch needed.
     # voyage-3-lite is fast, cheap, and well-suited for short semantic chunks.
-    embeddings = VoyageAIEmbeddings(model="voyage-3-lite")
+    embeddings = get_embeddings()
 
     collection_name = "use_case_kb"
     persist_dir = os.path.abspath(CHROMA_DIR)

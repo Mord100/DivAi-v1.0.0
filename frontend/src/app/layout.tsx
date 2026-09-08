@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import "./globals.css";
+import { AuthProvider } from "@/lib/supabase/AuthProvider";
 
 export const metadata: Metadata = {
   title: "DivAi — AI-Powered Lead Intelligence",
@@ -14,7 +15,9 @@ export default function RootLayout({
 }) {
   return (
     <html lang="en" className="bg-white antialiased">
-      <body className="font-sans text-neutral-950">{children}</body>
+      <body className="font-sans text-neutral-950">
+        <AuthProvider>{children}</AuthProvider>
+      </body>
     </html>
   );
 }

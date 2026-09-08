@@ -10,6 +10,8 @@
   },
   "dependencies": {
     "@remotion/player": "^4.0.438",
+    "@supabase/ssr": "^0.12.5",
+    "@supabase/supabase-js": "^2.112.4",
     "clsx": "^2.1.1",
     "framer-motion": "^12.35.2",
     "lucide-react": "^0.577.0",

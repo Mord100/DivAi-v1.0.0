@@ -1,7 +1,8 @@
 "use client";
 
-import { use, useState } from "react";
+import { use, useEffect, useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
 import { motion, AnimatePresence } from "framer-motion";
 import { Container } from "@/components/Container";
 import { FadeIn, FadeInStagger } from "@/components/FadeIn";
@@ -9,8 +10,9 @@ import { NodeCard } from "@/components/NodeCard";
 import { UseCaseSelector } from "@/components/UseCaseSelector";
 import { SolutionSelector } from "@/components/SolutionSelector";
 import { useAgentStream } from "@/hooks/useAgentStream";
-import { ArrowRight, Radio } from "lucide-react";
+import { ArrowRight, Radio, History } from "lucide-react";
 import { PaywallModal } from "@/components/PaywallModal";
+import { useAuth } from "@/lib/supabase/AuthProvider";
 
 interface PageProps { params: Promise<{ sessionId: string }> }
 
@@ -31,14 +33,21 @@ function rightPanelKey(
 
 export default function ScanPage({ params }: PageProps) {
   const { sessionId } = use(params);
+  const { user: authedUser } = useAuth();
+  const router = useRouter();
   const {
     nodes, isConnected, isComplete, error,
-    currentNode, pendingInteraction, submitInteraction,
+    currentNode, pendingInteraction, sessionExpired, submitInteraction,
   } = useAgentStream(sessionId);
 
   const [interacting, setInteracting] = useState(false);
   const [showPaywall, setShowPaywall] = useState(false);
   const [pendingSolutionId, setPendingSolutionId] = useState<string | null>(null);
+
+  // If the pipeline finished (pre-check or replayed), go straight to the report
+  useEffect(() => {
+    if (isComplete) router.push(`/report/${sessionId}`);
+  }, [isComplete, sessionId, router]);
 
   const completedCount = nodes.filter((n) => n.status === "complete").length;
   const isRunning = nodes.some((n) => n.status === "running");
@@ -88,6 +97,37 @@ export default function ScanPage({ params }: PageProps) {
 
   const panelKey = rightPanelKey(isComplete, !!error, pendingInteraction?.type, isRunning || isConnected);
 
+  // Session expired (server restarted, pipeline gone from memory)
+  if (sessionExpired) {
+    return (
+      <div className="min-h-screen bg-neutral-950 flex items-center justify-center">
+        <div className="text-center px-6">
+          <p className="text-neutral-500 text-xs uppercase tracking-widest mb-4">Session expired</p>
+          <h1 className="font-display text-2xl font-semibold text-white mb-3">This session has ended</h1>
+          <p className="text-neutral-500 text-sm mb-8 max-w-sm">
+            The pipeline session expired after the server restarted. Any completed stages are saved — start a new scan to continue.
+          </p>
+          <div className="flex items-center justify-center gap-3">
+            {authedUser && (
+              <Link
+                href="/history"
+                className="inline-flex items-center gap-1.5 rounded-full border border-neutral-700 px-5 py-2.5 text-sm text-neutral-400 hover:text-white transition"
+              >
+                <History className="w-3.5 h-3.5" /> My Reports
+              </Link>
+            )}
+            <Link
+              href="/"
+              className="inline-flex items-center gap-2 rounded-full bg-blue-600 hover:bg-blue-500 px-5 py-2.5 text-sm font-semibold text-white transition"
+            >
+              New scan <ArrowRight className="w-4 h-4" />
+            </Link>
+          </div>
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="min-h-screen bg-neutral-950">
       {/* Header */}
@@ -97,7 +137,15 @@ export default function ScanPage({ params }: PageProps) {
             <Link href="/" className="font-display text-lg font-medium text-white hover:text-neutral-300 transition">
               DivAi
             </Link>
-            <div className="flex items-center gap-2 text-xs">
+            <div className="flex items-center gap-4 text-xs">
+              {authedUser && (
+                <Link
+                  href="/history"
+                  className="inline-flex items-center gap-1.5 text-neutral-500 hover:text-white transition"
+                >
+                  <History className="w-3.5 h-3.5" /> My Reports
+                </Link>
+              )}
               <AnimatePresence mode="wait">
                 {isAwaiting && (
                   <motion.span

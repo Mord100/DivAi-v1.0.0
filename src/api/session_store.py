@@ -28,11 +28,12 @@ from datetime import datetime
 
 class PipelineSession:
     def __init__(self, session_id: str, url: str, depth: str,
-                 loop: asyncio.AbstractEventLoop):
+                 loop: asyncio.AbstractEventLoop, user_id: str | None = None):
         self.session_id = session_id
         self.url = url
         self.depth = depth
         self.loop = loop
+        self.user_id = user_id
 
         # SSE event queue — pipeline writes, SSE reads
         self.queue: asyncio.Queue = asyncio.Queue()
@@ -53,6 +54,9 @@ class PipelineSession:
         self.interaction_response: Optional[dict] = None    # user's submitted data
         self.pending_interaction: Optional[dict] = None     # what we're waiting for
 
+        # Ordered list of nodes that have completed (used for SSE replay on reconnect)
+        self.completed_nodes: list[str] = []
+
     def emit(self, event: dict) -> None:
         """Thread-safe event emission into the async SSE queue."""
         self.loop.call_soon_threadsafe(self.queue.put_nowait, event)
@@ -62,10 +66,18 @@ _sessions: dict[str, PipelineSession] = {}
 
 
 def create_session(url: str, depth: str,
-                   loop: asyncio.AbstractEventLoop) -> PipelineSession:
+                   loop: asyncio.AbstractEventLoop,
+                   user_id: str | None = None) -> PipelineSession:
     session_id = str(uuid.uuid4())
-    session = PipelineSession(session_id, url, depth, loop)
+    session = PipelineSession(session_id, url, depth, loop, user_id=user_id)
     _sessions[session_id] = session
+
+    try:
+        from api.supabase_store import upsert_scan
+        upsert_scan(session_id, url, depth, "pending", user_id=user_id)
+    except Exception as e:
+        print(f"[Supabase] create_session persist warning: {e}")
+
     return session
 
 

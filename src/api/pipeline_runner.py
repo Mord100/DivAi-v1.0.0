@@ -152,16 +152,39 @@ def _process_chunk(session: PipelineSession, chunk: dict) -> bool:
             })
             return True
 
+        # Node completed successfully — record for SSE replay on reconnect
+        session.completed_nodes.append(node_name)
+
     return False
 
 
 def _finalize(session: PipelineSession, app, config: dict) -> None:
-    """Store final state, emit pipeline_complete, close stream."""
+    """Store final state, persist to Supabase, emit pipeline_complete, close stream."""
     snapshot = app.get_state(config)
     full_state = dict(snapshot.values)
     session.final_state = {k: v for k, v in full_state.items() if k != "raw_scrape"}
     session.status = "complete"
     session.current_stage = "complete"
+
+    # Persist results and upload proposal file to Supabase
+    try:
+        from api.supabase_store import save_scan_results, update_scan_status, upload_proposal
+        update_scan_status(session.session_id, "complete", current_stage="complete")
+
+        # Upload the .docx first so the signed URL is included when we save results
+        docx_path = (session.final_state.get("proposal_paths") or {}).get("docx")
+        if docx_path:
+            signed_url = upload_proposal(session.session_id, docx_path)
+            if signed_url:
+                session.final_state.setdefault("proposal_paths", {})["signed_url"] = signed_url
+
+        save_scan_results(session.session_id, session.final_state)
+
+        # Compute and persist lead score
+        from api.supabase_store import update_lead_score
+        update_lead_score(session.session_id, session.final_state)
+    except Exception as e:
+        print(f"[Supabase] _finalize persist warning: {e}")
 
     session.emit({
         "type": "pipeline_complete",
@@ -325,6 +348,11 @@ def run_pipeline_in_thread(session: PipelineSession) -> None:
         print(f"[Pipeline] ERROR:\n{tb}")
         session.status = "error"
         session.error = error_msg
+        try:
+            from api.supabase_store import update_scan_status
+            update_scan_status(session.session_id, "error", error=error_msg)
+        except Exception:
+            pass
         session.emit({
             "type": "error",
             "message": error_msg,

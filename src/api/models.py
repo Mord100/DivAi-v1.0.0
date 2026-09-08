@@ -46,6 +46,10 @@ class ScanRequest(BaseModel):
         default="surface",
         description="Scrape depth: 'surface' (fast) or 'deep' (thorough)"
     )
+    user_id: Optional[str] = Field(
+        default=None,
+        description="User UUID from /api/users/identify — links scan to a lead"
+    )
 
 
 # ---------------------------------------------------------------------------

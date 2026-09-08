@@ -25,7 +25,7 @@ from fastapi import APIRouter, HTTPException
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "../.."))
 
-from api.models import ScanRequest, ScanResponse, SessionStatus
+from api.models import ScanRequest, ScanResponse
 from api.session_store import create_session, get_session, list_sessions
 from api.pipeline_runner import run_pipeline_in_thread
 
@@ -66,7 +66,7 @@ async def start_scan(request: ScanRequest):
     freeze for 60 seconds while the pipeline runs.
     """
     loop = asyncio.get_running_loop()
-    session = create_session(request.url, request.depth, loop)
+    session = create_session(request.url, request.depth, loop, user_id=request.user_id)
 
     # CONCEPT: Wrapping sync work as async
     # run_in_executor runs sync fn in a thread → returns a coroutine
@@ -90,34 +90,58 @@ async def start_scan(request: ScanRequest):
 # GET /api/status/{session_id} — lightweight poll
 # ---------------------------------------------------------------------------
 
-@router.get("/status/{session_id}", response_model=SessionStatus)
+@router.get("/status/{session_id}")
 async def get_status(session_id: str):
     """
     Get the current status of a pipeline session.
 
-    CONCEPT: Polling vs SSE
-    Not every client supports SSE (e.g. some mobile environments or proxies
-    may buffer or close SSE connections). The status endpoint provides an
-    alternative: the client can poll every 2-3 seconds.
+    Returns both in-memory session state and a session_alive flag so the
+    frontend can distinguish between a live session (resumable) and one
+    that expired when the server restarted.
 
-    For modern browsers, SSE is preferred. The status endpoint is a fallback.
-
-    CONCEPT: HTTPException
-    FastAPI's HTTPException sends a proper HTTP error response with
-    a status code and detail message. This is what the client receives
-    if they pass a bad session_id.
+    Falls back to Supabase DB when the session is not in memory.
     """
     session = get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
 
-    return SessionStatus(
-        session_id=session.session_id,
-        status=session.status,
-        current_stage=session.current_stage,
-        error=session.error,
-        created_at=session.created_at,
-    )
+    if session:
+        return {
+            "session_id": session_id,
+            "status": session.status,
+            "current_stage": session.current_stage,
+            "error": session.error,
+            "created_at": session.created_at,
+            "session_alive": True,
+            "pending_interaction_type": (
+                session.pending_interaction.get("type")
+                if session.pending_interaction else None
+            ),
+        }
+
+    # Session not in memory (server may have restarted) — check Supabase
+    try:
+        from api.supabase_store import get_service_client
+        client = get_service_client()
+        res = (
+            client.table("scans")
+            .select("id, status, current_stage, error, created_at")
+            .eq("id", session_id)
+            .execute()
+        )
+        if res.data:
+            scan = res.data[0]
+            return {
+                "session_id": session_id,
+                "status": scan["status"],
+                "current_stage": scan.get("current_stage"),
+                "error": scan.get("error"),
+                "created_at": scan.get("created_at"),
+                "session_alive": False,
+                "pending_interaction_type": None,
+            }
+    except Exception:
+        pass
+
+    raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
 
 
 # ---------------------------------------------------------------------------

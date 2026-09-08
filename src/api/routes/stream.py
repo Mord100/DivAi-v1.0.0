@@ -47,6 +47,7 @@ import asyncio
 import json
 import sys
 import os
+from datetime import datetime
 
 from fastapi import APIRouter, HTTPException
 from sse_starlette.sse import EventSourceResponse
@@ -59,6 +60,15 @@ router = APIRouter()
 
 HEARTBEAT_INTERVAL = 25   # seconds between keep-alive pings
 QUEUE_TIMEOUT = 30        # seconds to wait for next event before heartbeat
+
+NODE_LABELS = {
+    "ingestion":    "Scraping website",
+    "analysis":     "Analysing business signals",
+    "human_review": "Intelligence report ready",
+    "use_case":     "Generating use cases",
+    "solution":     "Designing solutions",
+    "proposal":     "Writing proposal",
+}
 
 
 @router.get("/stream/{session_id}")
@@ -88,13 +98,80 @@ async def stream_events(session_id: str):
         """
         Async generator that yields SSE events.
 
-        CONCEPT: asyncio.wait_for()
-        queue.get() is a coroutine that waits until an item is available.
-        If the pipeline is slow, it could wait indefinitely.
-        asyncio.wait_for(coroutine, timeout=N) adds a timeout:
-          - If the event arrives within N seconds → return it
-          - If not → raise asyncio.TimeoutError → we send a heartbeat instead
+        On initial connection: events stream live from the queue.
+        On reconnect (user left and came back): we first replay the recorded
+        completed_nodes + current pending_interaction so the frontend can
+        reconstruct its UI state without having to re-run the pipeline.
         """
+        ts = datetime.now().isoformat()
+
+        # ── Replay state for reconnecting clients ─────────────────────────
+        # If any nodes have already completed, replay their node_complete events
+        # so the frontend can reconstruct the pipeline progress view.
+        if session.completed_nodes or session.status not in ("pending", "running"):
+            yield {"data": json.dumps({
+                "type": "pipeline_start",
+                "message": f"Reconnected to pipeline for {session.url}",
+                "url": session.url,
+                "depth": session.depth,
+                "timestamp": ts,
+            })}
+
+            for node_name in session.completed_nodes:
+                yield {"data": json.dumps({
+                    "type": "node_complete",
+                    "node": node_name,
+                    "label": NODE_LABELS.get(node_name, node_name),
+                    "stage": node_name,
+                    "data": None,   # report page loads full data from its own API call
+                    "timestamp": ts,
+                })}
+
+            # If pipeline finished, close the stream immediately
+            if session.status == "complete":
+                proposal_title = None
+                if session.final_state:
+                    proposal_title = (session.final_state.get("proposal_paths") or {}).get("title")
+                yield {"data": json.dumps({
+                    "type": "pipeline_complete",
+                    "message": "Pipeline complete. Report is ready.",
+                    "proposal_title": proposal_title,
+                    "timestamp": ts,
+                })}
+                yield {"data": json.dumps({"type": "stream_end", "timestamp": ts})}
+                return
+
+            if session.status == "error":
+                yield {"data": json.dumps({
+                    "type": "error",
+                    "message": session.error or "Pipeline error",
+                    "timestamp": ts,
+                })}
+                yield {"data": json.dumps({"type": "stream_end", "timestamp": ts})}
+                return
+
+            # If awaiting user input, re-emit the interaction prompt.
+            # Then fall through to the queue loop — when the user submits their
+            # selection the pipeline thread unblocks and emits new events.
+            if session.status == "awaiting_input" and session.pending_interaction:
+                interaction = session.pending_interaction
+                interaction_type = interaction.get("type", "select_use_cases")
+                yield {"data": json.dumps({
+                    "type": "interaction_required",
+                    "interaction_type": interaction_type,
+                    "data": {
+                        "use_cases": interaction.get("use_cases"),
+                        "solutions": interaction.get("solutions"),
+                        "message": (
+                            "Select which use cases to build solutions for."
+                            if interaction_type == "select_use_cases"
+                            else "Select the solution to build."
+                        ),
+                    },
+                    "timestamp": ts,
+                })}
+
+        # ── Normal streaming loop ─────────────────────────────────────────
         # If the session already completed before client connected,
         # drain any buffered events then close
         while True:
