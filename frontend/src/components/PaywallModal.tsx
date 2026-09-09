@@ -53,11 +53,10 @@ export function PaywallModal({ isOpen, onConfirm, onBack }: PaywallModalProps) {
 
   function handleConfirm() {
     if (effectivePrice === 0) {
-      // Valid 100% promo — skip payment entirely
       onConfirm();
     } else {
-      // TODO: open Paychange checkout session, call onConfirm() on success
-      setPaymentError("Payment gateway not yet configured. Enter a promo code to unlock.");
+      // TODO: open Paychange checkout here — for now pass through so flow can be tested
+      onConfirm();
     }
   }
 

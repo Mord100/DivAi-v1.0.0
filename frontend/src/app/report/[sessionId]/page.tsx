@@ -697,6 +697,7 @@ export default function ReportPage({ params }: PageProps) {
   // Loading states shown in the respective tabs
   const [isRegenerating, setIsRegenerating] = useState(false);
   const [isRerunning, setIsRerunning] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
 
   const userId = typeof window !== "undefined"
     ? localStorage.getItem("divai_user_id")
@@ -730,16 +731,25 @@ export default function ReportPage({ params }: PageProps) {
   // Called when paywall confirms — executes the pending action
   async function handlePaywallConfirm() {
     if (!pendingAction) return;
+    setActionError(null);
+    const action = pendingAction;
     setPendingAction(null);
 
-    if (pendingAction.type === "regenerate_proposal") {
+    if (action.type === "regenerate_proposal") {
+      // Find the full solution object so we can send it to the backend
+      const solution = report?.solutions?.find((s) => s.id === action.solutionId);
+      if (!solution) { setActionError("Solution not found."); return; }
+
       setIsRegenerating(true);
       switchTab("solutions");
       try {
         const res = await fetch(`${API_URL}/api/regenerate/${sessionId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ selected_solution_id: pendingAction.solutionId }),
+          body: JSON.stringify({
+            solution,
+            intelligence_report: report?.intelligence_report ?? {},
+          }),
         });
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
@@ -750,17 +760,21 @@ export default function ReportPage({ params }: PageProps) {
         switchTab("proposal");
       } catch (err) {
         console.error("[ReportPage] regenerate_proposal failed:", err);
+        setActionError("Failed to regenerate proposal. Please try again.");
       } finally {
         setIsRegenerating(false);
       }
-    } else if (pendingAction.type === "rerun_solutions") {
+    } else if (action.type === "rerun_solutions") {
       setIsRerunning(true);
       switchTab("use_cases");
       try {
         const res = await fetch(`${API_URL}/api/rerun-solutions/${sessionId}`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ selected_use_case_ids: pendingAction.useCaseIds }),
+          body: JSON.stringify({
+            selected_use_case_ids: action.useCaseIds,
+            use_cases: report?.use_cases ?? [],
+          }),
         });
         if (!res.ok) throw new Error(await res.text());
         const data = await res.json();
@@ -768,6 +782,7 @@ export default function ReportPage({ params }: PageProps) {
         switchTab("solutions");
       } catch (err) {
         console.error("[ReportPage] rerun_solutions failed:", err);
+        setActionError("Failed to re-run solutions. Please try again.");
       } finally {
         setIsRerunning(false);
       }
@@ -873,6 +888,12 @@ export default function ReportPage({ params }: PageProps) {
             </FadeIn>
 
             <div className="pb-16">
+              {actionError && (
+                <div className="mb-6 flex items-center justify-between gap-4 rounded-2xl border border-red-200 bg-red-50 px-5 py-3">
+                  <p className="text-sm text-red-700">{actionError}</p>
+                  <button onClick={() => setActionError(null)} className="text-xs text-red-500 hover:text-red-700 cursor-pointer transition shrink-0">Dismiss</button>
+                </div>
+              )}
               {activeTab === "intelligence" && <IntelligenceTab report={report.intelligence_report} />}
               {activeTab === "use_cases" && report.use_cases && (
                 <UseCasesTab
