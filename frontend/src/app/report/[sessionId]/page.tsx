@@ -161,7 +161,7 @@ function UseCasesTab({
             )}>
               <button
                 onClick={() => setExpanded(expanded === uc.id ? null : uc.id)}
-                className="w-full text-left p-5 hover:bg-neutral-50 transition"
+                className="w-full text-left p-5 hover:bg-neutral-50 cursor-pointer transition"
               >
                 <div className="flex items-start gap-3">
                   {/* Checkbox */}
@@ -228,7 +228,7 @@ function UseCasesTab({
           <button
             onClick={() => onRequestRerunSolutions([...selected])}
             disabled={selected.size === 0}
-            className="inline-flex items-center gap-2 rounded-full bg-neutral-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
+            className="inline-flex items-center gap-2 rounded-full bg-neutral-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed cursor-pointer transition"
           >
             <RefreshCw className="h-4 w-4" />
             Re-run solutions
@@ -244,10 +244,14 @@ function UseCasesTab({
 function SolutionsTab({
   solutions,
   isRegenerating,
+  isPending,
+  pendingSolutionId,
   onRequestGenerate,
 }: {
   solutions: SolutionCard[];
   isRegenerating: boolean;
+  isPending: boolean;
+  pendingSolutionId: string | null;
   onRequestGenerate: (solutionId: string) => void;
 }) {
   const [expanded, setExpanded] = useState<string | null>(solutions[0]?.id ?? null);
@@ -273,7 +277,7 @@ function SolutionsTab({
             <div className="rounded-2xl border border-neutral-200 overflow-hidden">
               <button
                 onClick={() => setExpanded(expanded === sol.id ? null : sol.id)}
-                className="w-full text-left p-5 hover:bg-neutral-50 transition"
+                className="w-full text-left p-5 hover:bg-neutral-50 cursor-pointer transition"
               >
                 <div className="flex items-start justify-between gap-4">
                   <div className="min-w-0">
@@ -308,9 +312,13 @@ function SolutionsTab({
                   </div>
                   <button
                     onClick={() => onRequestGenerate(sol.id)}
-                    className="inline-flex items-center gap-2 rounded-full bg-neutral-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800 transition"
+                    disabled={isPending}
+                    className="inline-flex items-center gap-2 rounded-full bg-neutral-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition"
                   >
-                    <ArrowRight className="h-4 w-4" /> Generate proposal for this solution
+                    {pendingSolutionId === sol.id
+                      ? <><Loader2 className="h-4 w-4 animate-spin" /> Generating…</>
+                      : <><ArrowRight className="h-4 w-4" /> Generate proposal for this solution</>
+                    }
                   </button>
                 </div>
               )}
@@ -399,7 +407,7 @@ function ChatPanel({
               <button
                 key={suggestion}
                 onClick={() => sendMessage(suggestion)}
-                className="w-full text-left text-xs text-neutral-400 hover:text-neutral-700 hover:bg-neutral-50 rounded-lg px-3 py-2 transition-colors duration-150"
+                className="w-full text-left text-xs text-neutral-400 hover:text-neutral-700 hover:bg-neutral-50 rounded-lg px-3 py-2 cursor-pointer transition-colors duration-150"
               >
                 {suggestion}
               </button>
@@ -442,7 +450,7 @@ function ChatPanel({
         <button
           onClick={handleSubmit}
           disabled={!input.trim() || isStreaming}
-          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-950 text-white hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed transition-colors"
+          className="flex h-9 w-9 shrink-0 items-center justify-center rounded-xl bg-neutral-950 text-white hover:bg-neutral-800 disabled:opacity-30 disabled:cursor-not-allowed cursor-pointer transition-colors"
         >
           {isStreaming
             ? <Loader2 className="h-4 w-4 animate-spin" />
@@ -849,7 +857,7 @@ export default function ReportPage({ params }: PageProps) {
                     key={tab.id}
                     onClick={() => switchTab(tab.id)}
                     className={clsx(
-                      "flex items-center gap-1.5 px-5 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px transition",
+                      "flex items-center gap-1.5 px-5 py-3.5 text-sm font-medium whitespace-nowrap border-b-2 -mb-px cursor-pointer transition",
                       activeTab === tab.id
                         ? "border-neutral-950 text-neutral-950"
                         : "border-transparent text-neutral-400 hover:text-neutral-700"
@@ -877,6 +885,8 @@ export default function ReportPage({ params }: PageProps) {
                 <SolutionsTab
                   solutions={report.solutions}
                   isRegenerating={isRegenerating}
+                  isPending={pendingAction !== null || isRegenerating}
+                  pendingSolutionId={pendingAction?.type === "regenerate_proposal" ? pendingAction.solutionId : null}
                   onRequestGenerate={(id) => requestAction({ type: "regenerate_proposal", solutionId: id })}
                 />
               )}
