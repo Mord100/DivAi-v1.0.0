@@ -30,7 +30,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 
@@ -143,7 +143,12 @@ def run_solution_agent(use_cases: list[dict],
         print(f"  - {uc.get('title')} ({uc.get('confidence_score', 0):.0%})")
 
     retriever = get_solution_retriever(k=3)
-    llm = ChatAnthropic(model="claude-sonnet-4-6", temperature=0.2)
+    llm = ChatOpenAI(
+        model=os.getenv("LLM_MODEL", "anthropic/claude-sonnet-4-6"),
+        temperature=0.2,
+        api_key=os.getenv("OPENROUTER_API_KEY"),
+        base_url="https://openrouter.ai/api/v1",
+    )
 
     # CONCEPT: Per-Use-Case Multi-Query Retrieval
     # For each use case, build a focused query combining:

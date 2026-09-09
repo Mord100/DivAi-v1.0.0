@@ -21,13 +21,17 @@ CONCEPTS COVERED:
 """
 
 import json
-import anthropic
+import os
+from openai import OpenAI
 from pydantic import BaseModel, Field
 from dotenv import load_dotenv
 
 load_dotenv()
 
-client = anthropic.Anthropic()
+client = OpenAI(
+    api_key=os.getenv("OPENROUTER_API_KEY"),
+    base_url="https://openrouter.ai/api/v1",
+)
 
 
 # ---------------------------------------------------------------------------
@@ -168,120 +172,86 @@ SCRIPT SOURCES (unique domains):
 
 ANALYSIS_TOOLS = [
     {
-        "name": "classify_tech_stack",
-        "description": (
-            "Classify the technology stack used by the website based on the briefing data. "
-            "Call this FIRST."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "frontend_framework": {
-                    "type": "string",
-                    "description": "Primary frontend framework e.g. 'Next.js / React', 'Vue 3', 'Angular'"
+        "type": "function",
+        "function": {
+            "name": "classify_tech_stack",
+            "description": "Classify the technology stack used by the website. Call this FIRST.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "frontend_framework": {"type": "string"},
+                    "language":           {"type": "string"},
+                    "hosting_signals":    {"type": "array", "items": {"type": "string"}},
+                    "database_signals":   {"type": "array", "items": {"type": "string"}},
+                    "confidence":         {"type": "number"},
                 },
-                "language": {
-                    "type": "string",
-                    "description": "Primary language e.g. 'TypeScript', 'JavaScript', 'Python'"
-                },
-                "hosting_signals": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Inferred hosting/CDN e.g. ['Vercel', 'AWS CloudFront']"
-                },
-                "database_signals": {
-                    "type": "array",
-                    "items": {"type": "string"},
-                    "description": "Inferred databases from API patterns e.g. ['PostgreSQL']"
-                },
-                "confidence": {
-                    "type": "number",
-                    "description": "Confidence score 0.0-1.0"
-                }
+                "required": ["frontend_framework", "language", "hosting_signals",
+                             "database_signals", "confidence"],
             },
-            "required": ["frontend_framework", "language", "hosting_signals",
-                         "database_signals", "confidence"]
-        }
+        },
     },
     {
-        "name": "extract_api_endpoints",
-        "description": (
-            "Extract and classify the API endpoints observed in network traffic. "
-            "Infer their purpose from URL patterns and HTTP methods."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "endpoints": {
-                    "type": "array",
-                    "items": {
-                        "type": "object",
-                        "properties": {
-                            "method":           {"type": "string"},
-                            "url_pattern":      {"type": "string"},
-                            "inferred_purpose": {"type": "string"},
-                            "data_signals":     {
-                                "type": "array",
-                                "items": {"type": "string"}
-                            }
+        "type": "function",
+        "function": {
+            "name": "extract_api_endpoints",
+            "description": "Extract and classify API endpoints observed in network traffic.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "endpoints": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "properties": {
+                                "method":           {"type": "string"},
+                                "url_pattern":      {"type": "string"},
+                                "inferred_purpose": {"type": "string"},
+                                "data_signals":     {"type": "array", "items": {"type": "string"}},
+                            },
+                            "required": ["method", "url_pattern", "inferred_purpose", "data_signals"],
                         },
-                        "required": ["method", "url_pattern", "inferred_purpose", "data_signals"]
-                    }
-                }
+                    },
+                },
+                "required": ["endpoints"],
             },
-            "required": ["endpoints"]
-        }
+        },
     },
     {
-        "name": "detect_auth_pattern",
-        "description": "Identify the authentication and authorisation patterns used.",
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "method":        {"type": "string",
-                                  "description": "e.g. 'JWT Bearer', 'Session Cookie', 'OAuth2', 'API Key'"},
-                "providers":     {"type": "array", "items": {"type": "string"},
-                                  "description": "OAuth providers e.g. ['Google', 'GitHub']"},
-                "token_refresh": {"type": "boolean"},
-                "notes":         {"type": "string"}
+        "type": "function",
+        "function": {
+            "name": "detect_auth_pattern",
+            "description": "Identify the authentication and authorisation patterns used.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "method":        {"type": "string"},
+                    "providers":     {"type": "array", "items": {"type": "string"}},
+                    "token_refresh": {"type": "boolean"},
+                    "notes":         {"type": "string"},
+                },
+                "required": ["method", "providers", "token_refresh", "notes"],
             },
-            "required": ["method", "providers", "token_refresh", "notes"]
-        }
+        },
     },
     {
-        "name": "finalize_report",
-        "description": (
-            "Call this LAST to complete the intelligence report. "
-            "Synthesise all previous tool results into a final assessment."
-        ),
-        "input_schema": {
-            "type": "object",
-            "properties": {
-                "ui_patterns": {
-                    "type": "array", "items": {"type": "string"},
-                    "description": "e.g. ['SaaS dashboard', 'Marketing site', 'E-commerce store']"
+        "type": "function",
+        "function": {
+            "name": "finalize_report",
+            "description": "Call this LAST to complete the intelligence report.",
+            "parameters": {
+                "type": "object",
+                "properties": {
+                    "ui_patterns":       {"type": "array", "items": {"type": "string"}},
+                    "data_models":       {"type": "array", "items": {"type": "string"}},
+                    "business_category": {"type": "string"},
+                    "key_features":      {"type": "array", "items": {"type": "string"}},
+                    "analyst_notes":     {"type": "string"},
                 },
-                "data_models": {
-                    "type": "array", "items": {"type": "string"},
-                    "description": "Inferred data models e.g. ['User', 'Subscription', 'Invoice']"
-                },
-                "business_category": {
-                    "type": "string",
-                    "description": "e.g. 'FinTech SaaS', 'E-commerce', 'Developer Tools'"
-                },
-                "key_features": {
-                    "type": "array", "items": {"type": "string"},
-                    "description": "Core product features detected"
-                },
-                "analyst_notes": {
-                    "type": "string",
-                    "description": "Key observations and anything interesting worth flagging"
-                }
+                "required": ["ui_patterns", "data_models", "business_category",
+                             "key_features", "analyst_notes"],
             },
-            "required": ["ui_patterns", "data_models", "business_category",
-                         "key_features", "analyst_notes"]
-        }
-    }
+        },
+    },
 ]
 
 
@@ -342,87 +312,76 @@ You MUST call the tools in this order:
 Be precise and specific. Base conclusions on evidence in the briefing.
 If something is uncertain, say so in the confidence score or notes."""
 
+    # OpenAI format: system prompt goes in the messages list, not a separate param
     messages = [
-        {"role": "user", "content": f"Please analyse this website briefing:\n\n{briefing}"}
+        {"role": "system", "content": system_prompt},
+        {"role": "user", "content": f"Please analyse this website briefing:\n\n{briefing}"},
     ]
 
+    model = os.getenv("LLM_MODEL", "anthropic/claude-sonnet-4-6")
     step = 0
 
-    # The agent loop
+    # The agent loop — same logic, different API shapes
     while True:
         step += 1
         print(f"[Analysis] Agent step {step}...")
 
-        response = client.messages.create(
-            model="claude-sonnet-4-6",
+        response = client.chat.completions.create(
+            model=model,
             max_tokens=4096,
-            system=system_prompt,
             tools=ANALYSIS_TOOLS,
-            messages=messages
+            messages=messages,
         )
 
-        # If Claude finished with text (shouldn't happen with tool_choice=required)
-        if response.stop_reason == "end_turn":
-            print("[Analysis] Agent completed via end_turn")
+        choice = response.choices[0]
+
+        # No tool calls — model finished with text
+        if choice.finish_reason != "tool_calls":
+            print("[Analysis] Agent completed without tool calls")
             break
 
-        # Claude wants to call a tool
-        if response.stop_reason == "tool_use":
-            # Add Claude's response to conversation history
-            messages.append({"role": "assistant", "content": response.content})
+        # Model wants to call tools — add its response to history
+        messages.append(choice.message)
 
-            tool_results = []
+        for tool_call in (choice.message.tool_calls or []):
+            tool_name  = tool_call.function.name
+            tool_input = json.loads(tool_call.function.arguments)
+            print(f"[Analysis] Tool called: {tool_name}")
 
-            for block in response.content:
-                if block.type != "tool_use":
-                    continue
+            if tool_name == "classify_tech_stack":
+                tool_results_store["tech_stack"] = TechStack(**tool_input)
+                result_content = "Tech stack classification saved."
 
-                tool_name = block.name
-                tool_input = block.input
-                print(f"[Analysis] Tool called: {tool_name}")
+            elif tool_name == "extract_api_endpoints":
+                endpoints = [
+                    DetectedEndpoint(**ep)
+                    for ep in tool_input.get("endpoints", [])
+                ]
+                tool_results_store["api_endpoints"] = endpoints
+                result_content = f"{len(endpoints)} API endpoints extracted."
 
-                # CONCEPT: Tool Execution
-                # In a real tool-use agent, we'd call external APIs here.
-                # For analysis tools, the "execution" is just capturing the
-                # structured data Claude filled in — Claude IS the tool.
-                # We validate it with Pydantic to catch any type errors.
+            elif tool_name == "detect_auth_pattern":
+                tool_results_store["auth_pattern"] = AuthPattern(**tool_input)
+                result_content = "Auth pattern detected."
 
-                if tool_name == "classify_tech_stack":
-                    tool_results_store["tech_stack"] = TechStack(**tool_input)
-                    result_content = "Tech stack classification saved."
+            elif tool_name == "finalize_report":
+                tool_results_store["final"] = tool_input
+                result_content = "Report finalised."
 
-                elif tool_name == "extract_api_endpoints":
-                    endpoints = [
-                        DetectedEndpoint(**ep)
-                        for ep in tool_input.get("endpoints", [])
-                    ]
-                    tool_results_store["api_endpoints"] = endpoints
-                    result_content = f"{len(endpoints)} API endpoints extracted."
+            else:
+                result_content = f"Unknown tool: {tool_name}"
 
-                elif tool_name == "detect_auth_pattern":
-                    tool_results_store["auth_pattern"] = AuthPattern(**tool_input)
-                    result_content = "Auth pattern detected."
+            # Feed each tool result back individually (OpenAI format)
+            messages.append({
+                "role": "tool",
+                "tool_call_id": tool_call.id,
+                "content": result_content,
+            })
 
-                elif tool_name == "finalize_report":
-                    tool_results_store["final"] = tool_input
-                    result_content = "Report finalised."
-
-                else:
-                    result_content = f"Unknown tool: {tool_name}"
-
-                # Feed the result back so Claude knows the tool succeeded
-                tool_results.append({
-                    "type": "tool_result",
-                    "tool_use_id": block.id,
-                    "content": result_content
-                })
-
-            messages.append({"role": "user", "content": tool_results})
-
-            # Stop once finalize_report has been called
-            if tool_results_store["final"] is not None:
-                print("[Analysis] All tools called. Building report.")
-                break
+        # Stop once finalize_report has been called
+        if tool_results_store["final"] is not None:
+            print("[Analysis] All tools called. Building report.")
+            break
 
     # ---------------------------------------------------------------------------
     # Assemble the final IntelligenceReport from all tool results

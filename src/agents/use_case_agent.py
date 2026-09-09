@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 from langchain_core.documents import Document
 from langchain_core.runnables import RunnablePassthrough
@@ -170,7 +170,12 @@ def run_use_case_agent(intelligence_report: dict) -> UseCaseList:
 
     # Step 2: Set up retriever and LLM
     retriever = get_use_case_retriever(k=5)
-    llm = ChatAnthropic(model="claude-sonnet-4-6", temperature=0.3)
+    llm = ChatOpenAI(
+        model=os.getenv("LLM_MODEL", "anthropic/claude-sonnet-4-6"),
+        temperature=0.3,
+        api_key=os.getenv("OPENROUTER_API_KEY"),
+        base_url="https://openrouter.ai/api/v1",
+    )
 
     # CONCEPT: temperature parameter
     # Temperature controls how "creative" vs "consistent" the LLM is.

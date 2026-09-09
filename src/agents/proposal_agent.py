@@ -27,7 +27,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), ".."))
 
 from dotenv import load_dotenv
 from pydantic import BaseModel, Field
-from langchain_anthropic import ChatAnthropic
+from langchain_openai import ChatOpenAI
 from langchain_core.prompts import ChatPromptTemplate
 
 load_dotenv()
@@ -176,7 +176,12 @@ def generate_proposal_content(solution: dict, report: dict) -> ProposalContent:
     The architecture section references the real tech stack detected.
     This is what makes DivAi proposals genuinely useful vs generic templates.
     """
-    llm = ChatAnthropic(model="claude-sonnet-4-6", temperature=0.4)
+    llm = ChatOpenAI(
+        model=os.getenv("LLM_MODEL", "anthropic/claude-sonnet-4-6"),
+        temperature=0.4,
+        api_key=os.getenv("OPENROUTER_API_KEY"),
+        base_url="https://openrouter.ai/api/v1",
+    )
 
     # CONCEPT: temperature=0.4 for document generation
     # Slightly higher than analysis (0.2-0.3) because proposals benefit from
