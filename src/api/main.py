@@ -58,7 +58,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from api.routes import scan, stream, report, interact, download, chat, auth_capture, admin, events, users
+from api.routes import scan, stream, report, interact, download, chat, auth_capture, admin, events, users, regenerate, rerun_solutions
 
 
 # ---------------------------------------------------------------------------
@@ -116,6 +116,8 @@ app.include_router(auth_capture.router, prefix="/api", tags=["Auth Capture"])
 app.include_router(admin.router,       prefix="/api", tags=["Admin"])
 app.include_router(events.router,      prefix="/api", tags=["Events"])
 app.include_router(users.router,       prefix="/api", tags=["Users"])
+app.include_router(regenerate.router,      prefix="/api", tags=["Regenerate"])
+app.include_router(rerun_solutions.router, prefix="/api", tags=["Rerun Solutions"])
 
 
 # ---------------------------------------------------------------------------

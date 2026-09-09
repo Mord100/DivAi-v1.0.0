@@ -10,8 +10,9 @@ import {
   ReportResponse, UseCase, SolutionCard, ProposalContent, EffortRow, RiskItem,
 } from "@/types/divai";
 import { useProposalChat } from "@/hooks/useProposalChat";
-import { ArrowLeft, ArrowUp, Download, Loader2, ChevronDown, ChevronUp, ExternalLink, History } from "lucide-react";
+import { ArrowLeft, ArrowRight, ArrowUp, Download, Loader2, ChevronDown, ChevronUp, ExternalLink, History, RefreshCw } from "lucide-react";
 import { useAuth } from "@/lib/supabase/AuthProvider";
+import { PaywallModal } from "@/components/PaywallModal";
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL ?? "http://localhost:8000";
 
@@ -114,22 +115,71 @@ function IntelligenceTab({ report }: { report: ReportResponse["intelligence_repo
 
 // ── Use cases tab ─────────────────────────────────────────────────────────────
 
-function UseCasesTab({ useCases }: { useCases: UseCase[] }) {
+function UseCasesTab({
+  useCases,
+  isRerunning,
+  onRequestRerunSolutions,
+}: {
+  useCases: UseCase[];
+  isRerunning: boolean;
+  onRequestRerunSolutions: (ids: string[]) => void;
+}) {
   const [expanded, setExpanded] = useState<string | null>(null);
+  // Default: all use cases selected
+  const [selected, setSelected] = useState<Set<string>>(() => new Set(useCases.map((uc) => uc.id)));
   const effortColour: Record<string, string> = {
     Low: "text-green-700 bg-green-50", Medium: "text-yellow-700 bg-yellow-50", High: "text-red-700 bg-red-50",
   };
+
+  function toggleSelect(id: string, e: React.MouseEvent) {
+    e.stopPropagation();
+    setSelected((prev) => {
+      const next = new Set(prev);
+      next.has(id) ? next.delete(id) : next.add(id);
+      return next;
+    });
+  }
+
+  if (isRerunning) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-neutral-400">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        <p className="text-sm font-medium">Generating new solutions…</p>
+        <p className="text-xs text-neutral-500">This takes about 15 seconds</p>
+      </div>
+    );
+  }
+
   return (
     <FadeInStagger faster>
       <div className="space-y-4">
         {useCases.map((uc) => (
           <FadeIn key={uc.id}>
-            <div className="rounded-2xl border border-neutral-200 overflow-hidden">
+            <div className={clsx(
+              "rounded-2xl border overflow-hidden transition",
+              selected.has(uc.id) ? "border-blue-300 ring-1 ring-blue-200" : "border-neutral-200"
+            )}>
               <button
                 onClick={() => setExpanded(expanded === uc.id ? null : uc.id)}
                 className="w-full text-left p-5 hover:bg-neutral-50 transition"
               >
-                <div className="flex items-start gap-4">
+                <div className="flex items-start gap-3">
+                  {/* Checkbox */}
+                  <div
+                    onClick={(e) => toggleSelect(uc.id, e)}
+                    className={clsx(
+                      "mt-0.5 h-5 w-5 shrink-0 rounded flex items-center justify-center border-2 transition cursor-pointer",
+                      selected.has(uc.id)
+                        ? "border-blue-600 bg-blue-600"
+                        : "border-neutral-300 bg-white"
+                    )}
+                  >
+                    {selected.has(uc.id) && (
+                      <svg className="h-3 w-3 text-white" fill="none" viewBox="0 0 12 12">
+                        <path d="M2 6l3 3 5-5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+                      </svg>
+                    )}
+                  </div>
                   <div className="flex-1 min-w-0">
                     <div className="flex items-center justify-between gap-4 mb-2">
                       <p className="font-semibold text-neutral-950">{uc.title}</p>
@@ -168,17 +218,53 @@ function UseCasesTab({ useCases }: { useCases: UseCase[] }) {
           </FadeIn>
         ))}
       </div>
+
+      {/* Re-run CTA */}
+      <FadeIn>
+        <div className="mt-8 flex items-center justify-between gap-4 rounded-2xl border border-neutral-200 bg-neutral-50 px-6 py-4">
+          <p className="text-sm text-neutral-600">
+            <span className="font-semibold text-neutral-950">{selected.size}</span> of {useCases.length} use cases selected
+          </p>
+          <button
+            onClick={() => onRequestRerunSolutions([...selected])}
+            disabled={selected.size === 0}
+            className="inline-flex items-center gap-2 rounded-full bg-neutral-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800 disabled:opacity-40 disabled:cursor-not-allowed transition"
+          >
+            <RefreshCw className="h-4 w-4" />
+            Re-run solutions
+          </button>
+        </div>
+      </FadeIn>
     </FadeInStagger>
   );
 }
 
 // ── Solutions tab ─────────────────────────────────────────────────────────────
 
-function SolutionsTab({ solutions }: { solutions: SolutionCard[] }) {
+function SolutionsTab({
+  solutions,
+  isRegenerating,
+  onRequestGenerate,
+}: {
+  solutions: SolutionCard[];
+  isRegenerating: boolean;
+  onRequestGenerate: (solutionId: string) => void;
+}) {
   const [expanded, setExpanded] = useState<string | null>(solutions[0]?.id ?? null);
   const effortColour: Record<string, string> = {
     Low: "text-green-700 bg-green-50", Medium: "text-yellow-700 bg-yellow-50", High: "text-red-700 bg-red-50",
   };
+
+  if (isRegenerating) {
+    return (
+      <div className="flex flex-col items-center justify-center py-24 gap-4 text-neutral-400">
+        <Loader2 className="h-8 w-8 animate-spin text-blue-500" />
+        <p className="text-sm font-medium">Generating proposal…</p>
+        <p className="text-xs text-neutral-500">This takes about 20 seconds</p>
+      </div>
+    );
+  }
+
   return (
     <FadeInStagger faster>
       <div className="space-y-4">
@@ -220,6 +306,12 @@ function SolutionsTab({ solutions }: { solutions: SolutionCard[] }) {
                       </ul>
                     </div>
                   </div>
+                  <button
+                    onClick={() => onRequestGenerate(sol.id)}
+                    className="inline-flex items-center gap-2 rounded-full bg-neutral-950 px-5 py-2.5 text-sm font-semibold text-white hover:bg-neutral-800 transition"
+                  >
+                    <ArrowRight className="h-4 w-4" /> Generate proposal for this solution
+                  </button>
                 </div>
               )}
             </div>
@@ -575,6 +667,11 @@ function ProposalTab({
 
 interface PageProps { params: Promise<{ sessionId: string }> }
 
+// Pending action type — determines what happens after paywall confirms
+type PendingAction =
+  | { type: "regenerate_proposal"; solutionId: string }
+  | { type: "rerun_solutions"; useCaseIds: string[] };
+
 export default function ReportPage({ params }: PageProps) {
   const { sessionId } = use(params);
   const { user: authedUser } = useAuth();
@@ -586,6 +683,12 @@ export default function ReportPage({ params }: PageProps) {
   const [proposalContent, setProposalContent] = useState<ProposalContent | undefined>();
   // Tracks recently-updated sections for the flash highlight
   const [updatedSections, setUpdatedSections] = useState<Set<string>>(new Set());
+
+  // Paywall + pending action — set when user clicks a paid action, cleared after paywall
+  const [pendingAction, setPendingAction] = useState<PendingAction | null>(null);
+  // Loading states shown in the respective tabs
+  const [isRegenerating, setIsRegenerating] = useState(false);
+  const [isRerunning, setIsRerunning] = useState(false);
 
   const userId = typeof window !== "undefined"
     ? localStorage.getItem("divai_user_id")
@@ -610,6 +713,58 @@ export default function ReportPage({ params }: PageProps) {
     setActiveTab(tab);
     track("tab_switched", { tab });
   }, [track]);
+
+  // Called when user clicks any paid action — shows paywall first
+  function requestAction(action: PendingAction) {
+    setPendingAction(action);
+  }
+
+  // Called when paywall confirms — executes the pending action
+  async function handlePaywallConfirm() {
+    if (!pendingAction) return;
+    setPendingAction(null);
+
+    if (pendingAction.type === "regenerate_proposal") {
+      setIsRegenerating(true);
+      switchTab("solutions");
+      try {
+        const res = await fetch(`${API_URL}/api/regenerate/${sessionId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ selected_solution_id: pendingAction.solutionId }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        const newPaths = data.proposal_paths;
+        setReport((prev) => prev ? { ...prev, proposal_paths: newPaths } : prev);
+        if (newPaths?.content) setProposalContent(newPaths.content as ProposalContent);
+        setUpdatedSections(new Set());
+        switchTab("proposal");
+      } catch (err) {
+        console.error("[ReportPage] regenerate_proposal failed:", err);
+      } finally {
+        setIsRegenerating(false);
+      }
+    } else if (pendingAction.type === "rerun_solutions") {
+      setIsRerunning(true);
+      switchTab("use_cases");
+      try {
+        const res = await fetch(`${API_URL}/api/rerun-solutions/${sessionId}`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ selected_use_case_ids: pendingAction.useCaseIds }),
+        });
+        if (!res.ok) throw new Error(await res.text());
+        const data = await res.json();
+        setReport((prev) => prev ? { ...prev, solutions: data.solutions } : prev);
+        switchTab("solutions");
+      } catch (err) {
+        console.error("[ReportPage] rerun_solutions failed:", err);
+      } finally {
+        setIsRerunning(false);
+      }
+    }
+  }
 
   // Called by the chat hook when Claude edits a section
   function handleSectionUpdate(section: string, newContent: string) {
@@ -639,8 +794,8 @@ export default function ReportPage({ params }: PageProps) {
       <header className="border-b border-neutral-100 bg-white sticky top-0 z-10">
         <Container>
           <div className="flex h-16 items-center gap-4">
-            <Link href={`/scan/${sessionId}`} className="flex items-center gap-1.5 text-sm font-medium text-neutral-400 hover:text-neutral-950 transition">
-              <ArrowLeft className="h-4 w-4" /> Back
+            <Link href="/" className="flex items-center gap-1.5 text-sm font-medium text-neutral-400 hover:text-neutral-950 transition">
+              <ArrowLeft className="h-4 w-4" /> New scan
             </Link>
             <div className="h-4 w-px bg-neutral-200" />
             <span className="font-display text-lg font-medium text-neutral-950 truncate flex-1">
@@ -711,8 +866,20 @@ export default function ReportPage({ params }: PageProps) {
 
             <div className="pb-16">
               {activeTab === "intelligence" && <IntelligenceTab report={report.intelligence_report} />}
-              {activeTab === "use_cases"    && report.use_cases && <UseCasesTab useCases={report.use_cases} />}
-              {activeTab === "solutions"    && report.solutions && <SolutionsTab solutions={report.solutions} />}
+              {activeTab === "use_cases" && report.use_cases && (
+                <UseCasesTab
+                  useCases={report.use_cases}
+                  isRerunning={isRerunning}
+                  onRequestRerunSolutions={(ids) => requestAction({ type: "rerun_solutions", useCaseIds: ids })}
+                />
+              )}
+              {activeTab === "solutions" && report.solutions && (
+                <SolutionsTab
+                  solutions={report.solutions}
+                  isRegenerating={isRegenerating}
+                  onRequestGenerate={(id) => requestAction({ type: "regenerate_proposal", solutionId: id })}
+                />
+              )}
               {activeTab === "proposal"     && (
                 <ProposalTab
                   paths={report.proposal_paths}
@@ -727,6 +894,12 @@ export default function ReportPage({ params }: PageProps) {
           </Container>
         </div>
       )}
+
+      <PaywallModal
+        isOpen={pendingAction !== null}
+        onConfirm={handlePaywallConfirm}
+        onBack={() => setPendingAction(null)}
+      />
     </div>
   );
 }
