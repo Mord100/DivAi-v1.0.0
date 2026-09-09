@@ -3,7 +3,7 @@
 ## Project Overview
 
 **DivAi** is an AI-powered business intelligence platform that turns any website into a qualified
-software development lead with a ready-to-build technical proposal in under 5 minutes.
+software development lead with a ready-to-build technical proposal in under 5 minutes..
 
 **Architecture:** Multi-agent LangGraph pipeline → FastAPI backend → Next.js/TypeScript frontend
 
