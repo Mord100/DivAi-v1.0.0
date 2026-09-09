@@ -163,9 +163,14 @@ export default function HomePage() {
                     />
                     <button
                       type="submit"
-                      className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-8 py-4 text-sm font-semibold text-white hover:bg-blue-500 transition shrink-0"
+                      disabled={loading}
+                      className="inline-flex items-center gap-2 rounded-2xl bg-blue-600 px-8 py-4 text-sm font-semibold text-white hover:bg-blue-500 disabled:opacity-50 disabled:cursor-not-allowed cursor-pointer transition shrink-0"
                     >
-                      Continue <ArrowRight className="h-4 w-4" />
+                      {loading ? (
+                        <><span className="h-4 w-4 rounded-full border-2 border-white/30 border-t-white animate-spin" /> Starting…</>
+                      ) : (
+                        <>Continue <ArrowRight className="h-4 w-4" /></>
+                      )}
                     </button>
                   </div>
                   <p className="mt-4 text-sm text-neutral-600">
@@ -228,7 +233,7 @@ export default function HomePage() {
                     <button
                       type="button"
                       onClick={() => { setStep("url"); setError(null); }}
-                      className="rounded-2xl border border-neutral-700 px-6 py-4 text-sm text-neutral-400 hover:border-neutral-500 transition"
+                      className="rounded-2xl border border-neutral-700 px-6 py-4 text-sm text-neutral-400 hover:border-neutral-500 cursor-pointer transition"
                     >
                       Back
                     </button>
