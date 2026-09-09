@@ -181,7 +181,7 @@ export default function HistoryPage() {
               </Link>
               <button
                 onClick={signOut}
-                className="p-1.5 text-neutral-600 hover:text-neutral-400 transition"
+                className="p-1.5 text-neutral-600 hover:text-neutral-400 cursor-pointer transition"
                 title="Sign out"
               >
                 <LogOut className="w-4 h-4" />

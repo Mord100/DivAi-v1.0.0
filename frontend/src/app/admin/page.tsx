@@ -138,7 +138,7 @@ export default function AdminPage() {
               </button>
               <button
                 onClick={logout}
-                className="flex items-center gap-2 rounded-full border border-neutral-800 px-3 py-1.5 text-xs text-neutral-600 hover:text-neutral-400 hover:border-neutral-700 transition"
+                className="flex items-center gap-2 rounded-full border border-neutral-800 px-3 py-1.5 text-xs text-neutral-600 hover:text-neutral-400 hover:border-neutral-700 cursor-pointer transition"
                 title="Sign out"
               >
                 <LogOut className="w-3.5 h-3.5" />
