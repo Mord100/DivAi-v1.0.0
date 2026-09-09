@@ -4,7 +4,7 @@ import { createServerClient } from "@supabase/ssr";
 const ADMIN_TOKEN = process.env.ADMIN_TOKEN ?? "";
 const ADMIN_COOKIE = "divai_admin";
 
-export default async function middleware(request: NextRequest) {
+export async function proxy(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // ── Admin auth ────────────────────────────────────────────────────────────
