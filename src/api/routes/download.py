@@ -42,14 +42,20 @@ async def download_proposal(session_id: str):
       1. Supabase Storage signed URL (survives restarts, preferred in prod)
       2. Local disk FileResponse (fallback for local dev before upload completes)
     """
+    paths: dict = {}
+
     session = get_session(session_id)
-    if not session:
-        raise HTTPException(status_code=404, detail="Session not found")
-
-    if not session.final_state:
-        raise HTTPException(status_code=202, detail="Pipeline not complete yet")
-
-    paths = session.final_state.get("proposal_paths") or {}
+    if session:
+        if not session.final_state:
+            raise HTTPException(status_code=202, detail="Pipeline not complete yet")
+        paths = session.final_state.get("proposal_paths") or {}
+    else:
+        # Fall back to Supabase if session not in memory
+        from api.supabase_store import load_scan_from_supabase
+        data = load_scan_from_supabase(session_id)
+        if not data:
+            raise HTTPException(status_code=404, detail="Session not found")
+        paths = data.get("proposal_paths") or {}
 
     # ── Option 1: redirect to Supabase Storage signed URL ────────────────
     signed_url = paths.get("signed_url")

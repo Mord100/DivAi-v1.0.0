@@ -241,6 +241,55 @@ def save_scan_results(session_id: str, final_state: dict) -> None:
 
 
 # ---------------------------------------------------------------------------
+# Load scan from Supabase (fallback when session not in memory)
+# ---------------------------------------------------------------------------
+
+def load_scan_from_supabase(session_id: str) -> dict | None:
+    """
+    Load a completed scan's full data from Supabase.
+    Used as a fallback when the in-memory session_store doesn't have the session
+    (e.g. after a server restart on Render free tier).
+
+    Returns a dict with keys: status, intelligence_report, use_cases,
+    solutions, proposal_paths, pipeline_log — or None if not found.
+    """
+    try:
+        client = get_service_client()
+
+        # Get scan status from scans table
+        scan_res = client.table("scans").select("id, status").eq("id", session_id).execute()
+        if not scan_res.data:
+            return None
+
+        scan_row = scan_res.data[0]
+        status = scan_row.get("status", "unknown")
+
+        # Get full results from scan_results table
+        results_res = (
+            client.table("scan_results")
+            .select("intelligence_report, use_cases, solutions, proposal_paths, pipeline_log")
+            .eq("id", session_id)
+            .execute()
+        )
+
+        if not results_res.data:
+            return {"status": status}
+
+        row = results_res.data[0]
+        return {
+            "status": status,
+            "intelligence_report": row.get("intelligence_report"),
+            "use_cases": row.get("use_cases"),
+            "solutions": row.get("solutions"),
+            "proposal_paths": row.get("proposal_paths"),
+            "pipeline_log": row.get("pipeline_log"),
+        }
+    except Exception as e:
+        print(f"[Supabase] load_scan_from_supabase warning: {e}")
+        return None
+
+
+# ---------------------------------------------------------------------------
 # Events
 # ---------------------------------------------------------------------------
 

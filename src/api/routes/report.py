@@ -51,38 +51,56 @@ async def get_report(session_id: str):
     semantically correct than returning an empty 200.
     """
     session = get_session(session_id)
-    if not session:
+
+    # ── In-memory session found ──────────────────────────────────────────────
+    if session:
+        if session.status in ("pending", "running"):
+            from fastapi.responses import JSONResponse
+            return JSONResponse(
+                status_code=202,
+                content={
+                    "session_id": session_id,
+                    "status": session.status,
+                    "message": "Pipeline is still running. Check back when status is 'complete'.",
+                }
+            )
+        if session.status == "error":
+            return ReportResponse(session_id=session_id, status="error", error=session.error)
+
+        final = session.final_state or {}
+        return ReportResponse(
+            session_id=session_id,
+            status="complete",
+            intelligence_report=final.get("intelligence_report"),
+            use_cases=final.get("use_cases"),
+            solutions=final.get("solutions"),
+            proposal_paths=final.get("proposal_paths"),
+            pipeline_log=final.get("pipeline_log"),
+        )
+
+    # ── Session not in memory — fall back to Supabase (server restarted) ────
+    from api.supabase_store import load_scan_from_supabase
+    data = load_scan_from_supabase(session_id)
+    if not data:
         raise HTTPException(status_code=404, detail=f"Session '{session_id}' not found")
 
-    # Pipeline still running — return 202 Accepted
-    if session.status in ("pending", "running"):
+    status = data.get("status", "unknown")
+    if status in ("pending", "running"):
         from fastapi.responses import JSONResponse
         return JSONResponse(
             status_code=202,
-            content={
-                "session_id": session_id,
-                "status": session.status,
-                "message": "Pipeline is still running. Check back when status is 'complete'.",
-            }
+            content={"session_id": session_id, "status": status,
+                     "message": "Pipeline is still running."},
         )
-
-    # Error case
-    if session.status == "error":
-        return ReportResponse(
-            session_id=session_id,
-            status="error",
-            error=session.error,
-        )
-
-    # Pipeline complete — return full report
-    final = session.final_state or {}
+    if status == "error":
+        return ReportResponse(session_id=session_id, status="error", error="Pipeline failed")
 
     return ReportResponse(
         session_id=session_id,
         status="complete",
-        intelligence_report=final.get("intelligence_report"),
-        use_cases=final.get("use_cases"),
-        solutions=final.get("solutions"),
-        proposal_paths=final.get("proposal_paths"),
-        pipeline_log=final.get("pipeline_log"),
+        intelligence_report=data.get("intelligence_report"),
+        use_cases=data.get("use_cases"),
+        solutions=data.get("solutions"),
+        proposal_paths=data.get("proposal_paths"),
+        pipeline_log=data.get("pipeline_log"),
     )
